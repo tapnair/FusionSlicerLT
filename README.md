@@ -18,7 +18,11 @@ After downloading the zip file follow the [installation instructions here](https
 <br>The X direction slices will have the notch in the top of the section
 <br>The Y direction slices will have the notches on the bottom of the section
 <br>To change the orientation of the slices, simply rotate the model
-
+<br>After running the command each slice will be a component in the design.
+<br>THe slices will also be a body in the root folder.
+<br>This allows you to lay the component flat and leave the bodies for reference
+<br> Here is a useful resource for laying the components flat:
+[NESTER](https://github.com/tapnair/NESTER)
 
 1. Enter the Model environment
 2. Select Addins/FusionSlicerLT
