@@ -1,0 +1,13 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"addin",
+	"id":	"6c2c4296-b872-4679-aff6-410dd2730951",
+	"author":	"Patrick Rainsberry",
+	"description":	{
+		"":	"Simplified SLicer for Fusion 360"
+	},
+	"version":	"1.0",
+	"runOnStartup":	false,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
