@@ -1,6 +1,6 @@
-# ![](./resources/32x32.png) EditParam
+# ![](./resources/32x32.png) FusionSlicerLT
 
-This is an [Autodesk Fusion 360](http://fusion360.autodesk.com/) script that's used for simply editing user parameters.
+This is an [Autodesk Fusion 360](http://fusion360.autodesk.com/) script that's used for generating slices with custom notches
 
 This sample is provided "As-is" with no guarantee of performance, reliability or warranty.
 
@@ -13,9 +13,15 @@ This sample is provided "As-is" with no guarantee of performance, reliability or
 After downloading the zip file follow the [installation instructions here](https://tapnair.github.io/installation.html) for your particular OS version of Fusion 360
 
 ## Usage
+**The model must be oriented relative to the origin of the design.**
+<br>The slices will be created in the X and Y directions
+<br>The X direction slices will have the notch in the top of the section
+<br>The Y direction slices will have the notches on the bottom of the section
+<br>To change the orientation of the slices, simply rotate the model
+
 
 1. Enter the Model environment
-2. Select Addins/FusionSLicerLT
+2. Select Addins/FusionSlicerLT
 3. The target body is the body to be split.
 4. Set the slice thickness
 5. X Template and Y Template bodies are the bodies for use with custom "notching"
@@ -23,6 +29,7 @@ After downloading the zip file follow the [installation instructions here](https
   <br>&nbsp;&nbsp;&nbsp; - By design the X Template is notched on the top and Y template is notch on the bottom
   <br>&nbsp;&nbsp;&nbsp; - X Template should be sketched on the Y-Z plane
   <br>&nbsp;&nbsp;&nbsp; - Y Template should be oriented on the X-Z Plane
+6. Specify the spacing and quantity for each direction
 
 ![Command UI](./resources/readMe_Command.png)
 
@@ -32,6 +39,9 @@ After downloading the zip file follow the [installation instructions here](https
 
 ![Command UI](./resources/readMe_Template_Bodies.png)
 
+
+## TODO
+Add option for "non-custom" notches
 
 
 ## License
