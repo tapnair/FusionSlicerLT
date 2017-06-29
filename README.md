@@ -1,79 +1,46 @@
-# Fusion360AddinSkeleton
-Framework to simplify the creation of Fusion 360 Addin
+# ![](./resources/32x32.png) EditParam
 
-Documentation to come later. For now:
+This is an [Autodesk Fusion 360](http://fusion360.autodesk.com/) script that's used for simply editing user parameters.
 
+This sample is provided "As-is" with no guarantee of performance, reliability or warranty.
 
-
-# Usage
-Files in the Fusion360Utilities folder should not be modified.
-
-Rename the following items to your desired addin name: 
-* Fusion360AddinSkeleton.py 
-* The top level folder
-* Fusion360AddinSkeleton.manifest
-
-## Step 1 
-Open the newly renamed python file
-
-The current file will create two commands in the Fusion 360 UI in the Addins Drop Down
-
-Change the names and description strings here to your desired naming conventions
-
-Currently each command relies on a separate file called Demo1Command.py and demo2Command.py
-
-If you want to rename the files that define the names of the commands you must do it for each one in 3 places:
-
-![Rename Command](./resources/rename_command.png)
+![Fusion Slicer LT](./resources/cover_image.png)
 
 
-## Step 2
+# Installation
+[Click here to download the Add-in](https://github.com/tapnair/FusionSlicerLT/archive/master.zip)
 
-Edit Demo1Command.py and add functionality to the desired methods.  
+After downloading the zip file follow the [installation instructions here](https://tapnair.github.io/installation.html) for your particular OS version of Fusion 360
 
-onCreate: Build your UI components here
+## Usage
 
-onExecute: Will be executed when user selects OK in command dialog.
+1. Enter the Model environment
+2. Select Addins/FusionSLicerLT
+3. The target body is the body to be split.
+4. Set the slice thickness
+5. X Template and Y Template bodies are the bodies for use with custom "notching"
+  <br>&nbsp;&nbsp;&nbsp; - The origin of the body will define the point on the slice where it is applied.
+  <br>&nbsp;&nbsp;&nbsp; - By design the X Template is notched on the top and Y template is notch on the bottom
+  <br>&nbsp;&nbsp;&nbsp; - X Template should be sketched on the Y-Z plane
+  <br>&nbsp;&nbsp;&nbsp; - Y Template should be oriented on the X-Z Plane
 
-DemoCommand1 creates a very basic UI and then accesses the input parameters.
+![Command UI](./resources/readMe_Command.png)
 
-###Some helpful extras:
+![Command UI](./resources/readMe_Sketch.png)
 
-_input_values_
+![Command UI](./resources/readMe_Source_Body.png)
 
-In the on_execute, on_preview, on_input_changed methods there is a parameter called "input_values"
-
-This parameter is a dictionary containing the relevant values for all of the user inputs.
-
-The key is the name of the input.
-
-The value is dependant on the type input:
-* Value type inputs will have their actual value stored (string or number depending)
-* List type inputs (drop downs, etc) will have the name of the selected item as the value (string)
-* Selection inputs regardless of whether they contain one or more selections will be returned as an array of the selected objects
-
-_Note: you can still access the raw command inputs object with the "inputs" variable.  This would behave similar to any of the examples in the API documentation._
+![Command UI](./resources/readMe_Template_Bodies.png)
 
 
 
-_get_app_objects_
+## License
+Samples are licensed under the terms of the [MIT License](http://opensource.org/licenses/MIT). Please see the [LICENSE](LICENSE) file for full details.
 
-This is a helper function that returns a dictionary of many useful fusion 360 application objects.
+## Written by
 
-This is the format of the returned dictionary:
-'''
-app_objects = {
-        'app': app,
-        'design': design,
-        'import_manager': import_manager,
-        'ui': ui,
-        'units_manager': units_manager,
-        'all_occurrences': all_occurrences,
-        'all_components': all_components,
-        'root_comp': root_comp,
-        'time_line': time_line,
-        'export_manager': export_manager,
-        'document': document
-    }
-'''
+Written by [Patrick Rainsberry](https://twitter.com/prrainsberry) <br /> (Autodesk Fusion 360 Business Development)
 
+See more useful [Fusion 360 Utilities](https://tapnair.github.io/index.html)
+
+[![Analytics](https://ga-beacon.appspot.com/UA-41076924-3/paramEdit)](https://github.com/igrigorik/ga-beacon)
