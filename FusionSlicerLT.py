@@ -3,7 +3,7 @@
 
 # Importing sample Fusion Command
 # Could import multiple Command definitions here
-from .FusionSlicerLTCommand import FusionSlicerLTCommand
+from .FusionSlicerLTCommand import FusionSlicerLTCommand, FusionSlicerLTCommand2
 
 commands = []
 command_definitions = []
@@ -20,6 +20,17 @@ cmd = {
 }
 command_definitions.append(cmd)
 
+# Define parameters for 1st command
+cmd = {
+    'cmd_name': 'Fusion Slicer LT 2',
+    'cmd_description': 'Simplified Fusion Slicing App',
+    'cmd_id': 'cmdID_slicer_lt2',
+    'cmd_resources': './resources',
+    'workspace': 'FusionSolidEnvironment',
+    'toolbar_panel_id': 'SolidScriptsAddinsPanel',
+    'class': FusionSlicerLTCommand2
+}
+command_definitions.append(cmd)
 
 
 # Set to True to display various useful messages when debugging your app
