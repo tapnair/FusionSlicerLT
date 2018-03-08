@@ -28,10 +28,10 @@ cmd = {
     'cmd_resources': './resources',
     'workspace': 'FusionSolidEnvironment',
     'toolbar_panel_id': 'SolidScriptsAddinsPanel',
+    'command_visible': False,
     'class': FusionSlicerLTCommand2
 }
 command_definitions.append(cmd)
-
 
 # Set to True to display various useful messages when debugging your app
 debug = False

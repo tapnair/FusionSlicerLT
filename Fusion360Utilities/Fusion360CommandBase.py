@@ -2,6 +2,7 @@ import traceback
 
 import adsk.core
 import adsk.fusion
+import json
 
 handlers = []
 
@@ -29,10 +30,22 @@ def get_inputs(command_inputs):
             input_values[command_input.id] = command_input.value
             input_values[command_input.id + '_input'] = command_input
 
+        # TODO need to account for radio and button multi select also
         # If the input type is in this list the name of the selected list item is returned
         elif command_input.objectType in list_types:
-            input_values[command_input.id] = command_input.selectedItem.name
-            input_values[command_input.id + '_input'] = command_input
+            if command_input.objectType == adsk.core.DropDownCommandInput.classType():
+                if command_input.dropDownStyle == adsk.core.DropDownStyles.CheckBoxDropDownStyle:
+                    input_values[command_input.id] = command_input.listItems
+                    input_values[command_input.id + '_input'] = command_input
+
+                else:
+                    if command_input.selectedItem is not None:
+                        input_values[command_input.id] = command_input.selectedItem.name
+                        input_values[command_input.id + '_input'] = command_input
+            else:
+                if command_input.selectedItem is not None:
+                    input_values[command_input.id] = command_input.selectedItem.name
+                    input_values[command_input.id + '_input'] = command_input
 
         # If the input type is a selection an array of entities is returned
         elif command_input.objectType in selection_types:
@@ -53,7 +66,6 @@ def get_inputs(command_inputs):
 
 # Finds command definition in active UI
 def command_definition_by_id(cmd_id, ui):
-
     command_definitions = ui.commandDefinitions
     command_definition = command_definitions.itemById(cmd_id)
     return command_definition
@@ -61,7 +73,6 @@ def command_definition_by_id(cmd_id, ui):
 
 # Find command control by id in nav bar
 def cmd_control_in_nav_bar(cmd_id, ui):
-
     toolbars_ = ui.toolbars
     nav_toolbar = toolbars_.itemById('NavToolbar')
     nav_toolbar_controls = nav_toolbar.controls
@@ -98,11 +109,13 @@ def toolbar_panel_by_id_in_workspace(workspace_id, toolbar_panel_id):
     all_toolbar_panels = this_workspace.toolbarPanels
     toolbar_panel = all_toolbar_panels.itemById(toolbar_panel_id)
 
-    if toolbar_panel is not None:
-        return toolbar_panel
-    else:
-        ui.messageBox(toolbar_panel_id + 'is not a valid tool bar')
-        raise ValueError
+    if toolbar_panel is None:
+        toolbar_panel = all_toolbar_panels.add(toolbar_panel_id, toolbar_panel_id)
+
+    return toolbar_panel
+
+    # ui.messageBox(toolbar_panel_id + 'is not a valid tool bar')
+    # raise ValueError
 
 
 # Returns the Command Control from the given panel
@@ -122,7 +135,6 @@ def command_control_by_id_in_panel(cmd_id, toolbar_panel, ui):
 
 # Get Controls in workspace panel or nav bar
 def get_controls(command_in_nav_bar, workspace, toolbar_panel_id, ui):
-
     # Add command in nav bar
     if command_in_nav_bar:
 
@@ -156,29 +168,38 @@ class Fusion360CommandBase:
         self.add_to_drop_down = cmd_def.get('add_to_drop_down', False)
         self.drop_down_cmd_id = cmd_def.get('drop_down_cmd_id', 'Default_DC_CmdId')
         self.drop_down_resources = cmd_def.get('drop_down_resources', './resources')
-        self.drop_down_name = cmd_def.get('drop_down_name', './resources')
+        self.drop_down_name = cmd_def.get('drop_down_name', 'Drop Name')
 
         self.command_in_nav_bar = cmd_def.get('command_in_nav_bar', False)
+
+        self.command_visible = cmd_def.get('command_visible', True)
+
+        self.command_promoted = cmd_def.get('command_promoted', False)
 
         self.debug = debug
 
         # global set of event handlers to keep them referenced for the duration of the command
         self.handlers = []
 
-    def on_preview(self, command, inputs, args, input_values):
+    def on_preview(self, command: adsk.core.Command, inputs: adsk.core.CommandInputs, args, input_values):
         pass
 
-    def on_destroy(self, command, inputs, reason, input_values):
+    def on_destroy(self, command: adsk.core.Command, inputs: adsk.core.CommandInputs, reason, input_values):
         pass
 
-    def on_input_changed(self, command_, command_inputs, changed_input, input_values):
+    def on_input_changed(self, command: adsk.core.Command, inputs: adsk.core.CommandInputs, changed_input,
+                         input_values):
         pass
 
-    def on_execute(self, command, inputs, args, input_values):
+    def on_execute(self, command: adsk.core.Command, inputs: adsk.core.CommandInputs, args, input_values):
         pass
 
-    def on_create(self, command, inputs):
+    def on_create(self, command: adsk.core.Command, inputs: adsk.core.CommandInputs):
         pass
+
+    def get_create_event(self):
+
+        return CommandCreatedEventHandler(self)
 
     def on_run(self):
         global handlers
@@ -214,12 +235,22 @@ class Fusion360CommandBase:
                                                                          self.cmd_description,
                                                                          self.cmd_resources)
 
-                on_command_created_handler = CommandCreatedEventHandler(self)
+                on_command_created_handler = self.get_create_event()
                 cmd_definition.commandCreated.add(on_command_created_handler)
                 handlers.append(on_command_created_handler)
 
                 new_control = controls_to_add_to.addCommand(cmd_definition)
-                new_control.isVisible = True
+
+                if self.command_visible:
+                    new_control.isVisible = True
+                else:
+                    new_control.isVisible = False
+
+                if self.command_promoted:
+                    new_control.isPromoted = True
+                else:
+                    new_control.isPromoted = False
+
 
         except:
             if ui:
@@ -254,6 +285,32 @@ class Fusion360CommandBase:
         except:
             if ui:
                 ui.messageBox('AddIn Stop Failed: {}'.format(traceback.format_exc()))
+
+
+# Base Class for creating Fusion 360 Commands
+class Fusion360PaletteCommandBase(Fusion360CommandBase):
+    def __init__(self, cmd_def, debug):
+        super().__init__(cmd_def, debug)
+        self.palette_id = cmd_def.get('palette_id', 'Default Command Name')
+        self.palette_name = cmd_def.get('palette_name', 'Palette Name')
+        self.palette_html_file_url = cmd_def.get('palette_html_file_url', '')
+        self.palette_is_visible = cmd_def.get('palette_is_visible', True)
+        self.palette_show_close_button = cmd_def.get('palette_show_close_button', True)
+        self.palette_is_resizable = cmd_def.get('palette_is_resizable', True)
+        self.palette_width = cmd_def.get('palette_width', 600)
+        self.palette_height = cmd_def.get('palette_height', 600)
+
+    def get_create_event(self):
+        return PaletteCommandCreatedEventHandler(self)
+
+    def on_html_event(self, html_args: adsk.core.HTMLEventArgs):
+        pass
+
+    def on_palette_close(self):
+        pass
+
+    def on_palette_execute(self, palette: adsk.core.Palette):
+        pass
 
 
 class ExecutePreviewHandler(adsk.core.CommandEventHandler):
@@ -398,3 +455,120 @@ class CommandCreatedEventHandler(adsk.core.CommandCreatedEventHandler):
         except:
             if ui:
                 ui.messageBox('Command created failed: {}'.format(traceback.format_exc()))
+
+
+class PaletteCommandCreatedEventHandler(adsk.core.CommandCreatedEventHandler):
+    def __init__(self, cmd_object):
+        super().__init__()
+        self.cmd_object_ = cmd_object
+
+    def notify(self, args):
+        app = adsk.core.Application.cast(adsk.core.Application.get())
+        ui = app.userInterface
+
+        try:
+            global handlers
+
+            command_ = args.command
+            inputs_ = command_.commandInputs
+
+            on_execute_handler = PaletteCommandExecuteHandler(self.cmd_object_)
+            command_.execute.add(on_execute_handler)
+            handlers.append(on_execute_handler)
+
+            if self.cmd_object_.debug:
+                ui.messageBox('***Debug *** Palette Panel command created successfully')
+
+            self.cmd_object_.on_create(command_, inputs_)
+
+        except:
+            if ui:
+                ui.messageBox('Command created failed: {}'.format(traceback.format_exc()))
+
+
+class PaletteCommandExecuteHandler(adsk.core.CommandEventHandler):
+    def __init__(self, cmd_object):
+        super().__init__()
+        self.cmd_object_ = cmd_object
+
+    def notify(self, args):
+        try:
+            app = adsk.core.Application.cast(adsk.core.Application.get())
+            ui = app.userInterface
+
+            if self.cmd_object_.debug:
+                ui.messageBox('***Debug command: {} executed successfully'.format(
+                    self.cmd_object_.parentCommandDefinition.id))
+
+            # Create and display the palette.
+            palette = ui.palettes.itemById(self.cmd_object_.palette_id)
+
+            if not palette:
+                palette = ui.palettes.add(self.cmd_object_.palette_id,
+                                          self.cmd_object_.palette_name,
+                                          self.cmd_object_.palette_html_file_url,
+                                          self.cmd_object_.palette_is_visible,
+                                          self.cmd_object_.palette_show_close_button,
+                                          self.cmd_object_.palette_is_resizable,
+                                          self.cmd_object_.palette_width,
+                                          self.cmd_object_.palette_height)
+
+                # Add handler to HTMLEvent of the palette.
+                on_html_event = HTMLEventHandler(self.cmd_object_)
+                palette.incomingFromHTML.add(on_html_event)
+                handlers.append(on_html_event)
+
+                # Add handler to CloseEvent of the palette.
+                on_closed = CloseEventHandler(self.cmd_object_)
+                palette.closed.add(on_closed)
+                handlers.append(on_closed)
+            else:
+                palette.isVisible = True
+
+            self.cmd_object_.on_palette_execute(palette)
+        except:
+            if ui:
+                ui.messageBox('command executed failed: {}'.format(traceback.format_exc()))
+
+
+# Event handler for the palette HTML event.
+class HTMLEventHandler(adsk.core.HTMLEventHandler):
+    def __init__(self, cmd_object):
+        super().__init__()
+
+        self.cmd_object_ = cmd_object
+
+    def notify(self, args):
+        app = adsk.core.Application.cast(adsk.core.Application.get())
+        ui = app.userInterface
+
+        try:
+            html_args = adsk.core.HTMLEventArgs.cast(args)
+
+            self.cmd_object_.on_html_event(html_args)
+
+        except:
+            if ui:
+                ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+
+
+# Event handler for the palette close event.
+class CloseEventHandler(adsk.core.UserInterfaceGeneralEventHandler):
+    def __init__(self, cmd_object):
+        super().__init__()
+        self.cmd_object_ = cmd_object
+
+    def notify(self, args):
+        app = adsk.core.Application.cast(adsk.core.Application.get())
+        ui = app.userInterface
+
+        try:
+            # Delete the palette created by this add-in.
+            palette = ui.palettes.itemById(self.cmd_object_.palette_id)
+            if palette:
+                palette.deleteMe()
+                # _ui.messageBox('Close button is clicked.')
+            self.cmd_object_.on_palette_close()
+
+        except:
+            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
