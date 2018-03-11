@@ -36,61 +36,8 @@ SLICERDEF = None
 # Show identification? Sketch on the model once its flat.
 # For Dove Tails model flush "body split"
 
-
-# Main Slice function
-def create_slices(target_body, spacing, qty, base_plane, slice_thickness):
-    target_comp = target_body.parentComponent
-
-    # Feature Collections
-    planes = target_comp.constructionPlanes
-    sketches = target_comp.sketches
-
-    slice_results = []
-    face_slices = []
-    for i in range(1, qty + 1):
-
-        # Create construction plane input
-        plane_input = planes.createInput()
-
-        # Add construction plane by offset
-        offset_value = adsk.core.ValueInput.createByReal(i * spacing)
-        plane_input.setByOffset(base_plane, offset_value)
-        plane = planes.add(plane_input)
-
-        # Create the sketch
-        sketch = add_construction_sketch(sketches, plane)
-        sketch.projectCutEdges(target_body)
-
-        # Account for potential of multiple resulting faces in the slice
-        for profile in sketch.profiles:
-
-            # Create the patch feature
-            patches = target_comp.features.patchFeatures
-            patch_input = patches.createInput(profile, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            patch_feature = patches.add(patch_input)
-
-            # Possibly patch could create multiple faces, although unlikely in this application
-            for face in patch_feature.faces:
-
-                # Check if surface is actually in solid
-                point = face.pointOnFace
-                containment = target_body.pointContainment(point)
-                if containment == adsk.fusion.PointContainment.PointInsidePointContainment:
-
-                    new_slice = create_slice(face, slice_thickness, target_body, face_slices)
-
-                    # 'Slice', ('face', 'new_body', 'end_face')
-                    slice_results.append(new_slice)
-
-                # Is the patch actually in a hole or void?  Delete
-                else:
-                    patch_feature.deleteMe()
-
-    # TODO delete patch body?
-    return slice_results
-
-
-def create_slices2(target_body, spacing, qty, base_plane, slice_thickness):
+# Create slice in a given direction
+def create_slices2(target_body, spacing, qty, base_plane, slice_thickness, name):
     target_comp = target_body.parentComponent
 
     # Feature Collections
@@ -109,14 +56,17 @@ def create_slices2(target_body, spacing, qty, base_plane, slice_thickness):
 
         plane_input.setByOffset(base_plane, offset_value)
         plane = planes.add(plane_input)
+        plane.name = name + '-' + str(i)
 
-        create_slice(plane, slice_thickness, target_body, face_slices, component_slices)
+        slice_name = name + '-' + str(i)
+
+        create_slice(plane, slice_thickness, target_body, face_slices, component_slices, slice_name)
 
     return component_slices, face_slices
 
 
 def create_slice(plane: adsk.fusion.ConstructionPlane, slice_thickness: float, target_body: adsk.fusion.BRepBody,
-                 face_slices, component_slices):
+                 face_slices, component_slices, slice_name):
     ao = get_app_objects()
     design = ao['design']
 
@@ -124,6 +74,7 @@ def create_slice(plane: adsk.fusion.ConstructionPlane, slice_thickness: float, t
 
     new_occurrence = target_comp.occurrences.addNewComponent(adsk.core.Matrix3D.create())
     new_occurrence.activate()
+    new_occurrence.component.name = slice_name
 
     # Feature Collections
     sketches = new_occurrence.component.sketches
@@ -135,14 +86,19 @@ def create_slice(plane: adsk.fusion.ConstructionPlane, slice_thickness: float, t
     mid_plane = plane
     mid_sketch = add_construction_sketch(sketches, mid_plane)
     mid_sketch.projectCutEdges(target_body)
+    mid_sketch.name = 'Mid_Sketch'
 
     plus_plane = create_offset_plane(new_occurrence.component, slice_thickness / 2, plane)
+    plus_plane.name = 'Plus_Plane'
     plus_sketch = add_construction_sketch(sketches, plus_plane)
     plus_sketch.projectCutEdges(target_body)
+    plus_sketch.name = 'Plus_Sketch'
 
     minus_plane = create_offset_plane(new_occurrence.component, -slice_thickness / 2, plane)
+    minus_plane.name = 'Minus_Plane'
     minus_sketch = add_construction_sketch(sketches, minus_plane)
     minus_sketch.projectCutEdges(target_body)
+    minus_sketch.name = 'Minus_Sketch'
 
     mid_slices = []
     get_contained_profiles(mid_sketch, patches, target_body, True, mid_slices)
@@ -153,6 +109,10 @@ def create_slice(plane: adsk.fusion.ConstructionPlane, slice_thickness: float, t
     thickness_value = adsk.core.ValueInput.createByReal(slice_thickness)
     negative_thickness_value = adsk.core.ValueInput.createByReal(-slice_thickness)
 
+    if plus_profiles.count == 0:
+        new_occurrence.component.name += '----FIX__ME'
+        plus_sketch.name += '----FIX__ME'
+        return
     plus_extrude = extrude_features.addSimple(plus_profiles, negative_thickness_value,
                                               adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     plus_bodies = []
@@ -163,6 +123,11 @@ def create_slice(plane: adsk.fusion.ConstructionPlane, slice_thickness: float, t
     create_face_slices(plus_extrude.endFaces, mid_slices, face_slices)
 
     # end_face = plus_extrude.endFaces[0]
+
+    if minus_profiles.count == 0:
+        new_occurrence.component.name += '----FIX__ME'
+        minus_sketch.name += '----FIX__ME'
+        return
 
     minus_extrude = extrude_features.addSimple(minus_profiles, thickness_value,
                                                adsk.fusion.FeatureOperations.IntersectFeatureOperation)
@@ -259,14 +224,14 @@ def make_posts(target_slices: List[SliceFace], intersect_slices: List[SliceFace]
     top_points = []
     bottom_points = []
 
-    for target_slice in target_slices:
+    for i, target_slice in enumerate(target_slices):
         sketches = target_slice.face.body.parentComponent.sketches
-        sketch = add_construction_sketch(sketches, target_slice.face)
+        post_sketch = add_construction_sketch(sketches, target_slice.face)
 
         for intersect_slice in intersect_slices:
-            sketch.projectCutEdges(intersect_slice.face.body)
+            post_sketch.projectCutEdges(intersect_slice.face.body)
 
-        lines = sketch.sketchCurves.sketchLines
+        lines = post_sketch.sketchCurves.sketchLines
 
         for line in lines:
 
@@ -285,6 +250,9 @@ def make_posts(target_slices: List[SliceFace], intersect_slices: List[SliceFace]
                     bottom_points.append(
                         Post_Point(start_point, target_slice.body, target_slice.face, line, length))
 
+        post_sketch.name = 'Intersection Sketch-' + str(i)
+        post_sketch.isVisible = False
+
     return top_points, bottom_points
 
 
@@ -298,16 +266,16 @@ def make_slots(target_body: adsk.fusion.BRepBody, post_points: List[Post_Point],
     # Create sketch
     # sketches = root_comp.sketches
 
-    for post_point in post_points:
+    for i, post_point in enumerate(post_points):
 
         sketches = post_point.body.parentComponent.sketches
         extrudes = post_point.body.parentComponent.features.extrudeFeatures
 
-        sketch = add_construction_sketch(sketches, post_point.sketch_face)
+        slot_sketch = add_construction_sketch(sketches, post_point.sketch_face)
 
-        sketch_lines = sketch.sketchCurves.sketchLines
+        sketch_lines = slot_sketch.sketchCurves.sketchLines
 
-        center_point = sketch.modelToSketchSpace(post_point.point)
+        center_point = slot_sketch.modelToSketchSpace(post_point.point)
         center_point.z = 0
 
         x_vector = direction.copy()
@@ -321,7 +289,7 @@ def make_slots(target_body: adsk.fusion.BRepBody, post_points: List[Post_Point],
         corner_point.translateBy(x_vector)
         corner_point.translateBy(y_vector)
 
-        corner_point_sketch = sketch.modelToSketchSpace(corner_point)
+        corner_point_sketch = slot_sketch.modelToSketchSpace(corner_point)
         corner_point_sketch.z = 0
 
         # corner_point.translateBy(adsk.core.Vector3D.create(post_point.length/2, thickness/2, 0))
@@ -330,7 +298,7 @@ def make_slots(target_body: adsk.fusion.BRepBody, post_points: List[Post_Point],
         rectangle_list = sketch_lines.addCenterPointRectangle(center_point, corner_point_sketch)
 
         # Get the profile defined by the rectangle
-        prof = sketch.profiles.item(0)
+        prof = slot_sketch.profiles.item(0)
 
         thickness_value = adsk.core.ValueInput.createByReal(thickness)
 
@@ -344,6 +312,9 @@ def make_slots(target_body: adsk.fusion.BRepBody, post_points: List[Post_Point],
 
         # Create the extrusion
         extrude = extrudes.add(extrude_input)
+
+        slot_sketch.name = 'slot_sketch-' + str(i)
+        slot_sketch.isVisible = False
 
 
 # Make slots from template body
@@ -552,7 +523,12 @@ class SlicerDef:
 
             self.target_body = target_body
             self.x_plane = create_offset_plane(target_comp, bounding_box.minPoint.x, target_comp.yZConstructionPlane)
+            self.x_plane.name = 'X_Zero_Plane'
+            self.x_plane.isLightBulbOn = False
+
             self.y_plane = create_offset_plane(target_comp, bounding_box.minPoint.y, target_comp.xZConstructionPlane)
+            self.y_plane.name = 'Y_Zero_Plane'
+            self.y_plane.isLightBulbOn = False
 
             self.x_spacing = (bounding_box.maxPoint.x - bounding_box.minPoint.x) / (num_x + 1)
             self.y_spacing = (bounding_box.maxPoint.y - bounding_box.minPoint.y) / (num_y + 1)
@@ -637,11 +613,13 @@ class FusionSlicerLTCommand(Fusion360CommandBase):
 
         # Make X Slices
         x_component_slices, x_face_slices = create_slices2(target_body, SLICERDEF.x_spacing, input_values['x_qty'],
-                                                           SLICERDEF.x_plane, input_values['slice_thickness'])
+                                                           SLICERDEF.x_plane, input_values['slice_thickness'],
+                                                           'X_Slice')
 
         # Make Y Slices
         y_component_slices, y_face_slices = create_slices2(target_body, SLICERDEF.y_spacing, input_values['y_qty'],
-                                                           SLICERDEF.y_plane, input_values['slice_thickness'])
+                                                           SLICERDEF.y_plane, input_values['slice_thickness'],
+                                                           'Y_Slice')
 
         custom_slots = False
 
